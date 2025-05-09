@@ -1,0 +1,5 @@
+openai
+streamlit
+python-dotenv
+beautifulsoup4
+# Add other libraries like chromadb or faiss-cpu later as needed 
