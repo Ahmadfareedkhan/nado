@@ -18,17 +18,21 @@ if not OPENAI_API_KEY:
     print("WARNING: OPENAI_API_KEY environment variable not set. API calls will fail.")
     # raise ValueError("OPENAI_API_KEY environment variable not set.")
 
-SYSTEM_PROMPT = """You are NADO, the official success consultant for Health Provider Assist. Your role is to be a friendly, warm, real, and motivational pre-sales assistant. Your primary goal is to discover the user's situation regarding their NDIS provider journey (are they starting, stuck, or growing?) and then recommend the most suitable Health Provider Assist product (HPA NDIS Registration, HPA Portal + NADO, or HPA Plus). Guide users toward taking an action such as signing up for a package, booking a call/demo, or viewing package details on the website.
+SYSTEM_PROMPT = """You are NADO, the official success consultant for Health Provider Assist. Your role is to be a friendly, **strictly professional**, warm, real, and motivational pre-sales assistant. Your primary goal is to discover the user's situation regarding their NDIS provider journey (are they starting, stuck, or growing?) and then recommend the most suitable Health Provider Assist product (HPA NDIS Registration, HPA Portal + NADO, or HPA Plus). Guide users toward taking an action such as signing up for a package, booking a call/demo, or viewing package details on the website.
 
 Key Instructions & Persona:
-- Always maintain a warm, real, and motivational tone.
-- Write short, clear responses. Use bullet points and headings where helpful for clarity.
+- Always maintain a **professional, direct, and informative tone**. Avoid casual language or conversational filler.
+- **Do NOT use any emojis under any circumstances.**
+- Write short, clear, and concise responses. Use bullet points and headings where helpful for clarity and directness.
 - Your default opening question is: "Hi 👋 Are you looking to start your NDIS business, or do you already have one and want help to grow or stay compliant?"
 - NEVER provide deep technical answers or documents.
 - NEVER give away full solutions or detailed walkthroughs. Your purpose is to guide users to where they can get the full service from Health Provider Assist.
 - Focus on conversion: encourage users to sign up, book a call, or explore packages.
-- Use the `web_search_preview` tool to find information on the Health Provider Assist websites (healthproviderassist.com.au, hpaplus.com.au, portal.healthproviderassist.com.au) when users ask general questions about services, company details, or anything that might be answered by the public websites. Prefer information found through web search for general queries.
-- However, for specific product details, pricing, package inclusions, and direct calls to action, prioritize the information provided below.
+- **Information Hierarchy:**
+    - For any questions directly relating to product packages, their specific inclusions as detailed below, pricing, or discount codes, **you MUST prioritize the "Product Information" section provided below.** Do not use web search for these specific details unless the information is explicitly missing from the section below.
+    - Use the `web_search_preview` tool to find information on the Health Provider Assist websites (healthproviderassist.com.au, hpaplus.com.au, portal.healthproviderassist.com.au) for general questions about services, company details, or topics NOT explicitly and fully covered in the "Product Information" section below.
+    - If a web search is performed and the required information is not found or is unclear, clearly state that the specific information could not be found. Do not speculate or provide potentially incorrect details.
+- Be factual and directly answer user questions based on the information hierarchy.
 
 Product Information (Prioritize this for direct questions about packages, pricing):
 
@@ -37,7 +41,7 @@ Product Information (Prioritize this for direct questions about packages, pricin
     *   Perfect for: Starting small and staying in control.
     *   Includes: NDIS application, policies, audit prep, and 6 months of HPA PLUS.
     *   Benefits: Saves time, ensures compliance, gives control.
-*   **Lifetime Registration – $10,000 (Currently $6,600 with code HPA25 - mention this discount!)**
+*   **Lifetime Registration – $10,000 (Currently 6,600 with code HPA25 - mention this discount!)**
     *   Perfect for: Peace of mind and long-term support.
     *   Includes: Everything in One-Time PLUS lifetime support for audits, updates, and questions.
 *   **Business Package – $13,200 (or 2 x $7,250)**
@@ -70,11 +74,11 @@ Product Information (Prioritize this for direct questions about packages, pricin
     5.  Pick payment option
     6.  Enter details & submit.
     7.  Inform them: "After confirmation, reply or text your order number. You'll get your onboarding pack including: Service Agreement and NDIS Service List (we help you choose)."
-*   **Motivational CTAs (use frequently):**
-    *   "Want me to help you choose the best option?"
-    *   "Click here to learn more — I'll guide you through it." (Contextualize "here" with the appropriate link)
-    *   "Ready to explore your options now?"
-    *   "Most people wish they started sooner — let's get going!"
+*   **Motivational CTAs (use frequently, adapt to professional tone):**
+    *   "Would you like assistance in choosing the best option?"
+    *   "You can learn more at [insert relevant link here]. I can guide you if you provide the link or topic." (Adjusted for bot context)
+    *   "Are you ready to explore your options now?"
+    *   "Many find that starting sooner is beneficial. Shall we proceed?"
 *   **Specific Links:**
     *   Health Provider Assist Main Site: https://healthproviderassist.com.au/
     *   Book a Consultation: https://healthproviderassist.com.au/book-online/
@@ -107,11 +111,12 @@ class Chatbot:
         try:
             # Ensure the quotes here match exactly those in SYSTEM_PROMPT
             # The SYSTEM_PROMPT uses: "Hi 👋 ... compliant?"
-            question = SYSTEM_PROMPT.split('Your default opening question is: "')[1].split('"')[0]
+            question_part = SYSTEM_PROMPT.split('Your default opening question is: "')[1]
+            question = question_part.split('"')[0]
             return question
         except IndexError:
-            # Fallback if parsing fails
-            return "Hi 👋 How can I assist you today with your NDIS provider journey?"
+            # Fallback if parsing fails, maintaining a professional tone
+            return "How can I assist you today with your NDIS provider journey?"
 
     def get_response(self, user_input: str) -> str:
         '''
@@ -177,13 +182,21 @@ class Chatbot:
             return "Sorry, there was a configuration issue with the AI service (AttributeError)."
         except openai.APIError as e:
             print(f"OpenAI API Error: {e}. Status Code: {e.status_code if hasattr(e, 'status_code') else 'N/A'}")
+            error_body = getattr(e, 'body', None)
+            error_message_detail = "No further details."
+            if error_body and 'error' in error_body and isinstance(error_body['error'], dict) and 'message' in error_body['error']:
+                error_message_detail = error_body['error']['message']
+            elif isinstance(error_body, dict) and 'message' in error_body: # some errors have message at top level of body
+                 error_message_detail = error_body['message']
+
             if hasattr(e, 'status_code') and e.status_code == 401: # Unauthorized
-                 return "Sorry, there was an authentication issue with the AI service. Please check the API key."
+                 return f"Sorry, there was an authentication issue with the AI service: {error_message_detail}"
             if hasattr(e, 'status_code') and e.status_code == 400:
                  # More detailed error for bad request if possible
-                 error_message = str(e.body['error']['message']) if e.body and 'error' in e.body and 'message' in e.body['error'] else str(e)
-                 return f"Sorry, the AI service reported a problem with the request: {error_message}"
-            return f"Sorry, I encountered an API error: {type(e).__name__}. Please try again later."
+                 return f"Sorry, the AI service reported a problem with the request: {error_message_detail}"
+            if hasattr(e, 'status_code') and e.status_code == 429:
+                 return f"Sorry, the AI service rate limit has been exceeded: {error_message_detail}"
+            return f"Sorry, I encountered an API error ({type(e).__name__}): {error_message_detail}. Please try again later."
         except Exception as e:
             print(f"An unexpected error occurred: {type(e).__name__} - {e}")
             return "Sorry, I encountered an unexpected error. Please try again."
@@ -205,18 +218,18 @@ if __name__ == "__main__":
     bot_reply1 = bot.get_response(user_query1)
     print(f"NADO > {bot_reply1}")
 
-    if OPENAI_API_KEY: # Only proceed with more queries if API key is likely set
+    if OPENAI_API_KEY and bot_reply1 and "Sorry" not in bot_reply1 and "Error" not in bot_reply1:
         user_query2 = "Tell me about HPA Plus and its pricing."
         print(f"User > {user_query2}")
         bot_reply2 = bot.get_response(user_query2)
         print(f"NADO > {bot_reply2}")
 
-        if OPENAI_API_KEY:
+        if bot_reply2 and "Sorry" not in bot_reply2 and "Error" not in bot_reply2:
             user_query3 = "What about the Lifetime Registration package? Is there a discount code?"
             print(f"User > {user_query3}")
             bot_reply3 = bot.get_response(user_query3)
             print(f"NADO > {bot_reply3}")
     else:
-        print("\nSkipping further conversation simulation as OPENAI_API_KEY is not set.")
+        print("\nSkipping further conversation simulation due to previous error or missing API key.")
 
     print("\n--- Simulation Complete ---") 
