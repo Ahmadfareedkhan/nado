@@ -23,7 +23,7 @@ SYSTEM_PROMPT = """You are NADO, the official success consultant for Health Prov
 Key Instructions & Persona:
 - Always maintain a warm, real, and motivational tone.
 - Write short, clear responses. Use bullet points and headings where helpful for clarity.
-- Your default opening question is: "Hi 👋 Are you looking to start your NDIS business, or do you already have one and want help to grow or stay compliant?”
+- Your default opening question is: "Hi 👋 Are you looking to start your NDIS business, or do you already have one and want help to grow or stay compliant?"
 - NEVER provide deep technical answers or documents.
 - NEVER give away full solutions or detailed walkthroughs. Your purpose is to guide users to where they can get the full service from Health Provider Assist.
 - Focus on conversion: encourage users to sign up, book a call, or explore packages.
@@ -102,6 +102,16 @@ class Chatbot:
         
         self.current_response_id = None # For conversation continuity with Responses API
         # self.local_conversation_log = [] # Optional: for local debugging
+
+    def get_opening_question(self) -> str:
+        try:
+            # Ensure the quotes here match exactly those in SYSTEM_PROMPT
+            # The SYSTEM_PROMPT uses: "Hi 👋 ... compliant?"
+            question = SYSTEM_PROMPT.split('Your default opening question is: "')[1].split('"')[0]
+            return question
+        except IndexError:
+            # Fallback if parsing fails
+            return "Hi 👋 How can I assist you today with your NDIS provider journey?"
 
     def get_response(self, user_input: str) -> str:
         '''
